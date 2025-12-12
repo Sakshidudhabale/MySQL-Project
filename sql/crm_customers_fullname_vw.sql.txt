@@ -1,0 +1,8 @@
+#11. Create a view or query that adds full_name = CONCAT(first_name, ' ', last_name) in
+#crm_customers.
+
+CREATE VIEW crm_customers_fullname AS
+SELECT 
+    *,
+    CONCAT(first_name, ' ', last_name) AS full_name
+from crm_cutomer_raw_table4;
