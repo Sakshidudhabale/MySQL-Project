@@ -6,7 +6,7 @@ import pickle
 import datetime
 
 # Load trained model
-MODEL_PATH = "C:/Users/Sakshi/OneDrive/Desktop/SQL_Project/Code/vw_next_purchase_training_lr.pkl"
+MODEL_PATH = "vw_next_purchase_training_lr.pkl"
 with open(MODEL_PATH, "rb") as f:
     model = pickle.load(f)
 
@@ -118,3 +118,4 @@ if st.button("Predict"):
 
     pred = model.predict(features_for_model)[0]
     st.success(f"Prediction: {'Churn' if pred==1 else 'Not Churn'}")
+
