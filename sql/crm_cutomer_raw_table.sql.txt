@@ -1,0 +1,21 @@
+create table crm_cutomer_raw_table4(
+crm_customer_id varchar(100) PRIMARY KEY,
+first_name     varchar(100),
+last_name      varchar(100),
+email          varchar(100),
+phone          int,
+gender         varchar(100),
+dob            varchar(100),
+city           varchar(100),
+state          varchar(100),
+signup_date       date,
+preferred_channel  varchar(100),
+loyalty_tier        varchar(100),
+filename          varchar(1000),
+user_name          varchar(100),
+rownumber       int,
+last_updated_at         timestamp
+);
+
+select * from crm_cutomer_raw_table4;
+

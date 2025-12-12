@@ -1,0 +1,12 @@
+create table marketing_events_raw_table4(
+event_id varchar(100) PRIMARY KEY,
+customer_email varchar(100),
+campaign_name varchar(100),
+event_type  varchar(100),
+event_time  date,
+channel     varchar(100),
+filename          varchar(1000),
+user_name          varchar(100),
+rownumber       int,
+last_updated_at         timestamp
+);

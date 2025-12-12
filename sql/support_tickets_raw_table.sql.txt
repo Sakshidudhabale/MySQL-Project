@@ -1,0 +1,12 @@
+create table support_tickets_raw_table4(
+ticket_id  varchar(100)PRIMARY KEY,
+customer_email varchar(100),
+created_at datetime,
+status varchar(100),
+priority varchar(100),
+issue_type varchar(100),
+filename          varchar(1000),
+user_name          varchar(100),
+rownumber       int,
+last_updated_at         timestamp
+);
