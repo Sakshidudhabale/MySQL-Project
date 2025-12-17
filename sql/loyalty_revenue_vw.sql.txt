@@ -1,0 +1,15 @@
+-- 2) Customer Value by Loyalty Tier
+CREATE OR REPLACE VIEW vw_loyalty_revenue AS
+SELECT
+    c.loyalty_tier,
+    c.crm_customer_id               AS customer_id,
+    COUNT(DISTINCT o.order_id)      AS total_orders,
+    COALESCE(SUM(o.net_amount), 0)  AS total_revenue,
+    AVG(o.net_amount)               AS avg_order_value
+FROM crm_cutomer_raw_table4 c
+LEFT JOIN ecommerce_orders_raw_table3 o
+       ON o.customer_id = c.crm_customer_id
+GROUP BY
+    c.loyalty_tier,
+    c.crm_customer_id;
+select * from vw_loyalty_revenue;

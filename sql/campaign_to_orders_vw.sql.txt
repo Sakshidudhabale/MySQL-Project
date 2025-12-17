@@ -1,0 +1,19 @@
+-- 4) Campaign → Orders Funnel
+CREATE OR REPLACE VIEW vw_campaign_to_orders AS
+SELECT
+    me.campaign_name,
+    c.crm_customer_id                             AS customer_id,
+    MAX(CASE WHEN LOWER(me.event_type) = 'click'
+             THEN 1 ELSE 0 END)                  AS clicked_flag,
+    COUNT(DISTINCT o.order_id)                    AS orders_after_campaign,
+    COALESCE(SUM(o.net_amount), 0)                AS revenue_after_campaign
+FROM marketing_events_raw_table4 me
+JOIN crm_cutomer_raw_table4 c
+     ON me.customer_email = c.email
+LEFT JOIN ecommerce_orders_raw_table3 o
+     ON o.customer_id = c.crm_customer_id
+    AND o.order_date >= me.event_time
+GROUP BY
+    me.campaign_name,
+    c.crm_customer_id;
+select * from vw_campaign_to_orders;

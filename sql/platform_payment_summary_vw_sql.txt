@@ -1,0 +1,12 @@
+-- 7) Platform & Payment Behavior
+CREATE OR REPLACE VIEW vw_platform_payment_summary AS
+SELECT
+    platform,
+    payment_method,
+    COUNT(DISTINCT order_id)         AS total_orders,
+    SUM(net_amount)                  AS total_revenue,
+    AVG(net_amount)                  AS avg_order_value
+FROM ecommerce_orders_raw_table3
+GROUP BY
+    platform,
+    payment_method;

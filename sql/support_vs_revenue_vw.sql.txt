@@ -1,0 +1,18 @@
+-- 8) Support Tickets vs Revenue
+CREATE OR REPLACE VIEW vw_support_vs_revenue AS
+SELECT
+    c.crm_customer_id                        AS customer_id,
+    c.email,
+    COUNT(DISTINCT st.ticket_id)             AS total_tickets,
+    SUM(CASE WHEN st.status = 'Resolved'
+             THEN 1 ELSE 0 END)             AS resolved_tickets,
+    COALESCE(SUM(o.net_amount), 0)           AS total_revenue
+FROM crm_cutomer_raw_table4 c
+LEFT JOIN support_tickets_raw_table4 st
+       ON st.customer_email = c.email
+LEFT JOIN ecommerce_orders_raw_table3 o
+       ON o.customer_id = c.crm_customer_id
+GROUP BY
+    c.crm_customer_id,
+    c.email;
+

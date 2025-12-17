@@ -1,0 +1,130 @@
+CREATE OR REPLACE VIEW vw_churn_training AS
+WITH
+    -- Set snapshot date
+    params AS (
+        SELECT
+            DATE('2025-07-01') AS snapshot_date,
+            DATE_ADD(DATE('2025-07-01'), INTERVAL 60 DAY) AS churn_horizon_end
+    ),
+
+    -- Orders BEFORE snapshot (features)
+    order_hist AS (
+        SELECT
+            o.customer_id,
+            COUNT(DISTINCT o.order_id) AS hist_total_orders,
+            COALESCE(SUM(o.net_amount), 0) AS hist_total_revenue,
+            AVG(o.net_amount) AS hist_avg_order_value,
+            MIN(o.order_date) AS hist_first_order_date,
+            MAX(o.order_date) AS hist_last_order_date
+        FROM ecommerce_orders_raw_table3 o
+        JOIN params p
+          ON o.order_date < p.snapshot_date
+        GROUP BY o.customer_id
+    ),
+
+    -- Orders AFTER snapshot (label)
+    order_future AS (
+        SELECT
+            o.customer_id,
+            COUNT(DISTINCT o.order_id) AS future_orders
+        FROM ecommerce_orders_raw_table3 o
+        JOIN params p
+          ON o.order_date >= p.snapshot_date
+         AND o.order_date < p.churn_horizon_end
+        GROUP BY o.customer_id
+    ),
+
+    -- Marketing history BEFORE snapshot
+    marketing_hist AS (
+        SELECT
+            me.customer_email,
+            COUNT(*) AS mh_total_events,
+            SUM(CASE WHEN LOWER(me.event_type) = 'open' THEN 1 ELSE 0 END) AS mh_opens,
+            SUM(CASE WHEN LOWER(me.event_type) = 'click' THEN 1 ELSE 0 END) AS mh_clicks,
+            SUM(CASE WHEN LOWER(me.event_type) = 'bounce' THEN 1 ELSE 0 END) AS mh_bounces,
+            SUM(CASE WHEN LOWER(me.event_type) = 'unsubscribe' THEN 1 ELSE 0 END) AS mh_unsubscribes,
+            MAX(me.event_time) AS mh_last_event_time
+        FROM marketing_events_raw_table4 me
+        JOIN params p
+          ON me.event_time < p.snapshot_date
+        GROUP BY me.customer_email
+    ),
+
+    -- Support tickets BEFORE snapshot
+    ticket_hist AS (
+        SELECT
+            st.customer_email,
+            COUNT(*) AS th_total_tickets,
+            SUM(CASE WHEN st.status = 'Open' THEN 1 ELSE 0 END) AS th_open_tickets,
+            SUM(CASE WHEN st.status = 'Resolved' THEN 1 ELSE 0 END) AS th_resolved_tickets,
+            SUM(CASE WHEN st.status = 'Closed' THEN 1 ELSE 0 END) AS th_closed_tickets,
+            MAX(st.created_at) AS th_last_ticket_time
+        FROM support_tickets_raw_table4 st
+        JOIN params p
+          ON st.created_at < p.snapshot_date
+        GROUP BY st.customer_email
+    )
+
+SELECT
+    c.crm_customer_id AS customer_id,
+    c.first_name,
+    c.last_name,
+    c.email,
+    c.gender,
+    c.city,
+    c.state,
+    c.signup_date,
+    c.loyalty_tier,
+    c.preferred_channel,
+
+    -- Orders history
+    COALESCE(oh.hist_total_orders, 0) AS hist_total_orders,
+    COALESCE(oh.hist_total_revenue, 0) AS hist_total_revenue,
+    oh.hist_avg_order_value,
+    oh.hist_first_order_date,
+    oh.hist_last_order_date,
+
+    CASE
+        WHEN oh.hist_last_order_date IS NULL THEN NULL
+        ELSE DATEDIFF((SELECT snapshot_date FROM params), oh.hist_last_order_date)
+    END AS hist_recency_days,
+
+    -- Marketing
+    COALESCE(mh.mh_total_events, 0) AS mh_total_events,
+    COALESCE(mh.mh_opens, 0) AS mh_opens,
+    COALESCE(mh.mh_clicks, 0) AS mh_clicks,
+    COALESCE(mh.mh_bounces, 0) AS mh_bounces,
+    COALESCE(mh.mh_unsubscribes, 0) AS mh_unsubscribes,
+
+    CASE
+        WHEN mh.mh_total_events > 0 THEN mh.mh_clicks / mh.mh_total_events
+        ELSE NULL
+    END AS mh_click_rate,
+
+    -- Support
+    COALESCE(th.th_total_tickets, 0) AS th_total_tickets,
+    COALESCE(th.th_open_tickets, 0) AS th_open_tickets,
+    COALESCE(th.th_resolved_tickets, 0) AS th_resolved_tickets,
+    COALESCE(th.th_closed_tickets, 0) AS th_closed_tickets,
+
+    -- FINAL LABEL: churn in next 60 days
+    CASE
+        WHEN ofu.future_orders IS NULL OR ofu.future_orders = 0
+        THEN 1
+        ELSE 0
+    END AS churn_label
+
+FROM crm_cutomer_raw_table4 c
+JOIN params p
+  ON c.signup_date < p.snapshot_date
+LEFT JOIN order_hist oh
+       ON oh.customer_id = c.crm_customer_id
+LEFT JOIN marketing_hist mh
+       ON mh.customer_email = c.email
+LEFT JOIN ticket_hist th
+       ON th.customer_email = c.email
+LEFT JOIN order_future ofu
+       ON ofu.customer_id = c.crm_customer_id;
+
+select * from vw_churn_training;
+

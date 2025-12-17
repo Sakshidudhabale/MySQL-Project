@@ -1,0 +1,70 @@
+CREATE OR REPLACE VIEW vw_next_purchase_category_training AS
+WITH ordered_orders AS (
+    SELECT
+        o.*,
+        ROW_NUMBER() OVER (
+            PARTITION BY o.customer_id
+            ORDER BY o.order_date
+        ) AS rn,
+        LEAD(o.category) OVER (
+            PARTITION BY o.customer_id
+            ORDER BY o.order_date
+        ) AS next_category,
+        LEAD(o.order_date) OVER (
+            PARTITION BY o.customer_id
+            ORDER BY o.order_date
+        ) AS next_order_date
+    FROM ecommerce_orders_raw_table3 o
+    WHERE o.order_date IS NOT NULL
+),
+agg_before_order AS (
+    -- aggregate behavior of customer up to & including this order
+    SELECT
+        o.customer_id,
+        o.order_id,
+        COUNT(*) AS orders_so_far,
+        SUM(o.net_amount) AS revenue_so_far,
+        AVG(o.net_amount) AS avg_order_value_so_far,
+        MAX(o.order_date) AS last_order_date_so_far,
+        MIN(o.order_date) AS first_order_date_so_far
+    FROM ecommerce_orders_raw_table3 o
+    GROUP BY o.customer_id, o.order_id
+)
+
+SELECT
+    oo.customer_id,
+    oo.order_id,
+    oo.order_date,
+    oo.platform,
+    oo.category AS current_category,
+    oo.sub_category AS current_sub_category,
+    oo.payment_method,
+    oo.quantity,
+    oo.unit_price,
+    oo.discount_pct,
+    oo.city,
+    oo.state,
+    oo.gross_amount,
+    oo.net_amount,
+
+    -- overall behavior so far
+    ab.orders_so_far,
+    ab.revenue_so_far,
+    ab.avg_order_value_so_far,
+    ab.first_order_date_so_far,
+    ab.last_order_date_so_far,
+
+    -- time since first order (at this step)
+    DATEDIFF(oo.order_date, ab.first_order_date_so_far) AS days_since_first_order,
+
+    -- LABEL: category of next order
+    oo.next_category AS target_next_category
+
+FROM ordered_orders oo
+JOIN agg_before_order ab
+  ON ab.customer_id = oo.customer_id
+ AND ab.order_id = oo.order_id
+WHERE
+    oo.next_category IS NOT NULL;   -- only rows where a next order exists
+    
+select * from vw_next_purchase_category_training;

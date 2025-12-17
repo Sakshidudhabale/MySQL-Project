@@ -1,0 +1,12 @@
+#14. Create a view marketing_events_clean that filters out rows with NULL customer_email or
+#invalid event_time and keeps only valid event_type values.
+#CREATE VIEW marketing_events_clean AS
+
+CREATE OR REPLACE VIEW marketing_events_clean AS
+SELECT *
+FROM marketing_events_raw_table4
+WHERE customer_email IS NOT NULL
+  AND TRIM(customer_email) <> ''
+  AND STR_TO_DATE(event_time, '%Y-%m-%d %H:%i:%s') IS NOT NULL
+  AND event_type IN ('open','click','bounce','unsubscribe');
+

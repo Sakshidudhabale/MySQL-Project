@@ -1,0 +1,141 @@
+CREATE OR REPLACE VIEW vw_customer_activity_wide AS
+with
+-- 1) Order aggregates per customer (RFM-style)
+order_agg AS (
+    SELECT
+        o.customer_id,
+        COUNT(DISTINCT o.order_id)                    AS total_orders,
+        COALESCE(SUM(o.net_amount), 0)                AS total_revenue,
+        AVG(o.net_amount)                             AS avg_order_value,
+        MIN(o.order_date)                             AS first_order_date,
+        MAX(o.order_date)                             AS last_order_date
+    FROM ecommerce_orders_raw_table3 o
+    WHERE o.order_date IS NOT NULL
+    GROUP BY o.customer_id
+),
+
+-- 2) Marketing aggregates per customer (email-level)
+marketing_agg AS (
+    SELECT
+        me.customer_email,
+        COUNT(*)                                      AS total_marketing_events,
+        SUM(CASE WHEN LOWER(me.event_type) = 'open'        THEN 1 ELSE 0 END) AS opens,
+        SUM(CASE WHEN LOWER(me.event_type) = 'click'       THEN 1 ELSE 0 END) AS clicks,
+        SUM(CASE WHEN LOWER(me.event_type) = 'bounce'      THEN 1 ELSE 0 END) AS bounces,
+        SUM(CASE WHEN LOWER(me.event_type) = 'unsubscribe' THEN 1 ELSE 0 END) AS unsubscribes,
+        MIN(me.event_time)                           AS first_marketing_event,
+        MAX(me.event_time)                           AS last_marketing_event
+    FROM marketing_events_raw_table4 me
+    WHERE me.event_time IS NOT NULL
+    GROUP BY me.customer_email
+),
+
+-- 3) Support ticket aggregates per customer (email-level)
+ticket_agg AS (
+    SELECT
+        st.customer_email,
+        COUNT(*)                                      AS total_tickets,
+        SUM(CASE WHEN st.status = 'Open'         THEN 1 ELSE 0 END) AS open_tickets,
+        SUM(CASE WHEN st.status = 'In Progress'  THEN 1 ELSE 0 END) AS in_progress_tickets,
+        SUM(CASE WHEN st.status = 'Resolved'     THEN 1 ELSE 0 END) AS resolved_tickets,
+        SUM(CASE WHEN st.status = 'Closed'       THEN 1 ELSE 0 END) AS closed_tickets,
+        MIN(st.created_at)                         AS first_ticket_date,
+        MAX(st.created_at)                         AS last_ticket_date
+    FROM support_tickets_raw_table4 st
+    WHERE st.created_at IS NOT NULL
+    GROUP BY st.customer_email
+)
+
+SELECT
+    -- === Customer-level info (from CRM) ===
+    c.crm_customer_id                    AS customer_id,
+    c.first_name,
+    c.last_name,
+    CONCAT(c.first_name, ' ', c.last_name) AS full_name,
+    c.email,
+    c.phone,
+    c.gender,
+    c.dob,
+    c.city       AS customer_city,
+    c.state      AS customer_state,
+    c.signup_date,
+    c.preferred_channel,
+    c.loyalty_tier,
+
+    -- === Customer-level order aggregates ===
+    oa.total_orders,
+    oa.total_revenue,
+    oa.avg_order_value,
+    oa.first_order_date,
+    oa.last_order_date,
+
+    -- Recency in days (based on last order) – can be NULL if no orders
+    CASE
+        WHEN oa.last_order_date IS NULL THEN NULL
+        ELSE DATEDIFF(CURDATE(), oa.last_order_date)
+    END AS recency_days,
+
+    -- === Customer-level marketing aggregates ===
+    ma.total_marketing_events,
+    ma.opens,
+    ma.clicks,
+    ma.bounces,
+    ma.unsubscribes,
+    ma.first_marketing_event,
+    ma.last_marketing_event,
+
+    -- Simple engagement rates
+    CASE
+        WHEN ma.total_marketing_events > 0
+        THEN ma.clicks / ma.total_marketing_events
+        ELSE NULL
+    END AS click_rate,
+
+    CASE
+        WHEN ma.total_marketing_events > 0
+        THEN ma.opens / ma.total_marketing_events
+        ELSE NULL
+    END AS open_rate,
+
+    -- === Customer-level support aggregates ===
+    ta.total_tickets,
+    ta.open_tickets,
+    ta.in_progress_tickets,
+    ta.resolved_tickets,
+    ta.closed_tickets,
+    ta.first_ticket_date,
+    ta.last_ticket_date,
+
+    -- === Order-level detail (one row per customer × order) ===
+    o.order_id,
+    o.order_date,
+    o.platform,
+    o.category,
+    o.sub_category,
+    o.payment_method,
+    o.quantity,
+    o.unit_price,
+    o.discount_pct,
+    o.city         AS order_city,
+    o.state        AS order_state,
+    o.gross_amount,
+    o.net_amount
+
+FROM crm_cutomer_raw_table4 c
+    -- bring order-level detail (can be multiple rows per customer)
+    LEFT JOIN ecommerce_orders_raw_table3 o
+           ON o.customer_id = c.crm_customer_id
+
+    -- bring customer-level order aggregates
+    LEFT JOIN order_agg oa
+           ON oa.customer_id = c.crm_customer_id
+
+    -- bring marketing aggregates by email
+    LEFT JOIN marketing_agg ma
+           ON ma.customer_email = c.email
+
+    -- bring ticket aggregates by email
+    LEFT JOIN ticket_agg ta
+           ON ta.customer_email = c.email;
+    
+select * from vw_customer_activity_wide;

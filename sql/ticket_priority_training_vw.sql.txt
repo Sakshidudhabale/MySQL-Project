@@ -1,0 +1,98 @@
+########################3
+
+CREATE OR REPLACE VIEW vw_ticket_priority_training AS
+WITH
+
+ticket_base AS (
+    SELECT
+        st.ticket_id,
+        st.customer_email,
+        st.created_at,
+        st.status,
+        st.priority AS target_priority,
+        st.issue_type
+    FROM support_tickets_raw_table4 st
+),
+
+cust_map AS (
+    SELECT
+        email,
+        crm_customer_id
+    FROM crm_cutomer_raw_table4
+),
+
+order_agg AS (
+    SELECT
+        o.customer_id,
+        COUNT(*) AS total_orders,
+        SUM(o.net_amount) AS total_revenue,
+        AVG(o.net_amount) AS avg_order_value,
+        MAX(o.order_date) AS last_order_date
+    FROM ecommerce_orders_raw_table3 o
+    GROUP BY o.customer_id
+),
+
+marketing_agg AS (
+    SELECT
+        customer_email,
+        COUNT(*) AS total_marketing_events,
+        SUM(CASE WHEN event_type='open' THEN 1 ELSE 0 END) AS opens,
+        SUM(CASE WHEN event_type='click' THEN 1 ELSE 0 END) AS clicks,
+        SUM(CASE WHEN event_type='bounce' THEN 1 ELSE 0 END) AS bounces,
+        SUM(CASE WHEN event_type='unsubscribe' THEN 1 ELSE 0 END) AS unsubscribes
+    FROM marketing_events_raw_table4
+    GROUP BY customer_email
+),
+
+ticket_hist AS (
+    SELECT
+        customer_email,
+        COUNT(*) AS historical_tickets,
+        SUM(CASE WHEN status='Resolved' THEN 1 END) AS resolved_tickets,
+        SUM(CASE WHEN status='Open' THEN 1 END) AS open_tickets,
+        MAX(created_at) AS last_ticket_date
+    FROM support_tickets_raw_table4
+    GROUP BY customer_email
+)
+
+SELECT
+    tb.ticket_id,
+    tb.customer_email,
+    cm.crm_customer_id,
+    tb.created_at,
+    tb.issue_type,
+
+    -- Customer-level aggregates
+    oa.total_orders,
+    oa.total_revenue,
+    oa.avg_order_value,
+    oa.last_order_date,
+    DATEDIFF(tb.created_at, oa.last_order_date) AS recency_days,
+
+    -- Marketing engagement
+    ma.total_marketing_events,
+    ma.opens,
+    ma.clicks,
+    ma.bounces,
+    ma.unsubscribes,
+    CASE WHEN ma.total_marketing_events > 0
+         THEN ma.clicks / ma.total_marketing_events
+         ELSE 0
+    END AS click_rate,
+
+    -- Support history
+    th.historical_tickets,
+    th.resolved_tickets,
+    th.open_tickets,
+    DATEDIFF(tb.created_at, th.last_ticket_date) AS days_since_last_ticket,
+
+    -- LABEL
+    tb.target_priority
+
+FROM ticket_base tb
+LEFT JOIN cust_map cm ON cm.email = tb.customer_email
+LEFT JOIN order_agg oa ON oa.customer_id = cm.crm_customer_id
+LEFT JOIN marketing_agg ma ON ma.customer_email = tb.customer_email
+LEFT JOIN ticket_hist th ON th.customer_email = tb.customer_email;
+
+select * from vw_ticket_priority_training;

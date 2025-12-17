@@ -1,0 +1,24 @@
+-- 10) Customer RFM Base View
+CREATE OR REPLACE VIEW vw_customer_rfm_base AS
+SELECT
+    c.crm_customer_id                      AS customer_id,
+    c.first_name,
+    c.last_name,
+    c.loyalty_tier,
+    MAX(o.order_date)                      AS last_order_date,
+    CASE
+        WHEN MAX(o.order_date) IS NULL
+        THEN NULL
+        ELSE DATEDIFF(CURDATE(), MAX(o.order_date))
+    END                                    AS recency_days,
+    COUNT(DISTINCT o.order_id)             AS frequency_orders,
+    COALESCE(SUM(o.net_amount), 0)         AS monetary_value
+FROM crm_cutomer_raw_table4 c
+LEFT JOIN ecommerce_orders_raw_table3 o
+       ON o.customer_id = c.crm_customer_id
+GROUP BY
+    c.crm_customer_id,
+    c.first_name,
+    c.last_name,
+    c.loyalty_tier;
+

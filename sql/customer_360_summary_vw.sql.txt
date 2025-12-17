@@ -1,0 +1,29 @@
+-- 5) Customer 360 Summary
+CREATE OR REPLACE VIEW vw_customer_360_summary AS
+SELECT
+    c.crm_customer_id                         AS customer_id,
+    c.first_name,
+    c.last_name,
+    c.email,
+    c.city,
+    c.state,
+    c.loyalty_tier,
+    COUNT(DISTINCT o.order_id)                AS total_orders,
+    COALESCE(SUM(o.net_amount), 0)            AS total_revenue,
+    COUNT(DISTINCT me.event_id)               AS total_marketing_events,
+    COUNT(DISTINCT st.ticket_id)              AS total_tickets
+FROM crm_cutomer_raw_table4 c
+LEFT JOIN ecommerce_orders_raw_table3 o
+       ON o.customer_id = c.crm_customer_id
+LEFT JOIN marketing_events_raw_table4 me
+       ON me.customer_email = c.email
+LEFT JOIN support_tickets_raw_table4 st
+       ON st.customer_email = c.email
+GROUP BY
+    c.crm_customer_id,
+    c.first_name,
+    c.last_name,
+    c.email,
+    c.city,
+    c.state,
+    c.loyalty_tier;

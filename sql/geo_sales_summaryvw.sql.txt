@@ -1,0 +1,12 @@
+-- 6) City & State Performance
+CREATE OR REPLACE VIEW vw_geo_sales_summary AS
+SELECT
+    city,
+    state,
+    COUNT(DISTINCT order_id)         AS total_orders,
+    SUM(net_amount)                  AS total_revenue,
+    AVG(net_amount)                  AS avg_order_value
+FROM ecommerce_orders_raw_table3
+GROUP BY
+    city,
+    state;

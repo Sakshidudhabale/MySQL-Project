@@ -1,0 +1,13 @@
+-- 3) Campaign Performance (Engagement)
+CREATE OR REPLACE VIEW vw_campaign_events AS
+SELECT
+    campaign_name,
+    event_type,
+    COUNT(*)                          AS event_count,
+    COUNT(DISTINCT customer_email)    AS unique_customers
+FROM marketing_events_raw_table4
+GROUP BY
+    campaign_name,
+    event_type;
+select * from vw_campaign_events;
+

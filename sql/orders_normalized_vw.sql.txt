@@ -1,0 +1,13 @@
+#13. Create a view orders_normalized that converts platform to lower case and trims any spaces.
+#CREATE VIEW orders_normalized AS
+
+CREATE OR REPLACE VIEW orders_normalized AS
+SELECT
+    order_id,
+    customer_id,
+    STR_TO_DATE(order_date, '%Y-%m-%d') AS order_date,
+    TRIM(LOWER(platform)) AS platform,
+    net_amount,
+    discount_pct
+FROM ecommerce_orders_raw_table3;
+select * from orders_normalized;
